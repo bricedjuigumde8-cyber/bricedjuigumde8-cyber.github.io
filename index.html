@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Ludo</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#e04a3c">
+<link rel="icon" href="ic%C3%B4ne-192.png">
+<style>
+:root{--bg:#faf6f0;--fg:#2b2622;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d1a17;--fg:#f3ece4}}
+:root[data-theme="dark"]{--bg:#1d1a17;--fg:#f3ece4}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:Georgia,serif;display:flex;flex-direction:column;align-items:center;padding:14px 12px;min-height:100%}
+h1{margin:0 0 8px;font-size:1.6rem}
+canvas{border-radius:12px;touch-action:manipulation;max-width:100%}
+#st{margin:12px 0 8px;min-height:1.4em;font-size:1.05rem;text-align:center}
+.row{display:flex;gap:12px;align-items:center}
+#die{font-size:3rem;line-height:1;width:60px;text-align:center}
+button{padding:12px 22px;border:0;border-radius:999px;background:var(--fg);color:var(--bg);font:inherit;font-size:1rem;cursor:pointer}
+button:disabled{opacity:.35}
+button.alt{background:transparent;color:var(--fg);border:1px solid var(--fg)}
+</style>
+</head>
+<body>
+<h1>🎲 Ludo</h1>
+<canvas id="cv"></canvas>
+<div id="st"></div>
+<div class="row"><div id="die">🎲</div><button id="roll">Lancer le dé</button><button class="alt" id="new">Rejouer</button></div>
+<script>
+const COL=["#e04a3c","#3aa655","#f2b72b","#3b7bd8"],NAMES=["Rouge","Vert","Jaune","Bleu"],ST=[0,13,26,39];
+const TR=[];
+[[1,6,1,0,5],[6,5,0,-1,6],[7,0,1,0,2],[8,1,0,1,5],[9,6,1,0,6],[14,7,0,1,2],[13,8,-1,0,5],[8,9,0,1,6],[7,14,-1,0,2],[6,13,0,-1,5],[5,8,-1,0,6],[0,7,0,-1,2]]
+.forEach(([x,y,dx,dy,n])=>{for(let k=0;k<n;k++)TR.push([x+dx*k,y+dy*k])});
+const HC=[0,1,2,3,4].map(i=>[[1+i,7],[7,1+i],[13-i,7],[7,13-i]]);
+const YARD=[[0,0],[9,0],[9,9],[0,9]];
+const HOMEOFF=[[-.7,0],[0,-.7],[.7,0],[0,.7]];
+const cv=document.getElementById("cv"),ctx=cv.getContext("2d"),st=document.getElementById("st"),die=document.getElementById("die"),rb=document.getElementById("roll");
+let P,turn,roll,phase,over,size=300;
+function newGame(){P=[0,1,2,3].map(()=>[-1,-1,-1,-1]);turn=0;roll=0;phase="roll";over=false;die.textContent="🎲";ui();draw()}
+const abs=(c,p)=>(ST[c]+p)%52, safe=a=>a%13==0||a%13==8;
+const legal=(c,r)=>[0,1,2,3].filter(i=>{const p=P[c][i];return p<0?r==6:p+r<=56});
+function pos(c,i){
+  const p=P[c][i];
+  if(p<0){const [ox,oy]=YARD[c];return[ox+(i%2?4:2)+.5,oy+(i>1?4:2)+.5]}
+  if(p<=50){const t=TR[abs(c,p)];return[t[0]+.5,t[1]+.5]}
+  if(p<56){const t=HC[p-51][c];return[t[0]+.5,t[1]+.5]}
+  return[7.5+HOMEOFF[c][0]+(i%2-.5)*.35,7.5+HOMEOFF[c][1]+((i>1)-.5)*.35];
+}
+function draw(){
+  const dpr=window.devicePixelRatio||1,s=size/15;
+  cv.width=size*dpr;cv.height=size*dpr;cv.style.width=size+"px";cv.style.height=size+"px";
+  ctx.setTransform(dpr*s,0,0,dpr*s,0,0);
+  ctx.fillStyle="#fff";ctx.fillRect(0,0,15,15);
+  for(let c=0;c<4;c++){
+    const [ox,oy]=YARD[c];ctx.fillStyle=COL[c];ctx.fillRect(ox,oy,6,6);
+    ctx.fillStyle="#fff";ctx.fillRect(ox+1,oy+1,4,4);
+    ctx.fillStyle=COL[c]+"55";
+    for(let i=0;i<4;i++){ctx.beginPath();ctx.arc(ox+(i%2?4:2)+.5,oy+(i>1?4:2)+.5,.45,0,7);ctx.fill()}
+  }
+  ctx.lineWidth=.04;ctx.strokeStyle="#999";ctx.font=".6px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
+  TR.forEach(([x,y],a)=>{
+    const sc=ST.indexOf(a);
+    ctx.fillStyle=sc>=0?COL[sc]:"#fff";ctx.fillRect(x,y,1,1);ctx.strokeRect(x,y,1,1);
+    if(a%13==8){ctx.fillStyle="#999";ctx.fillText("★",x+.5,y+.55)}
+  });
+  for(let c=0;c<4;c++)for(let i=0;i<5;i++){const [x,y]=HC[i][c];ctx.fillStyle=COL[c];ctx.fillRect(x,y,1,1);ctx.strokeRect(x,y,1,1)}
+  [[6,6,6,9],[6,6,9,6],[9,6,9,9],[6,9,9,9]].forEach(([a,b,c,d],k)=>{
+    ctx.fillStyle=COL[[0,1,2,3][k]];ctx.beginPath();ctx.moveTo(a,b);ctx.lineTo(c,d);ctx.lineTo(7.5,7.5);ctx.fill();
+  });
+  const mv=(turn==0&&phase=="pick")?legal(0,roll):[],seen={};
+  for(let c=0;c<4;c++)for(let i=0;i<4;i++){
+    let [x,y]=pos(c,i);const k=x+","+y;seen[k]=(seen[k]||0);
+    if(P[c][i]>=0&&P[c][i]<56){x+=seen[k]*.13;y-=seen[k]*.13}seen[k]++;
+    ctx.beginPath();ctx.arc(x,y,.38,0,7);ctx.fillStyle=COL[c];ctx.fill();
+    ctx.lineWidth=.07;ctx.strokeStyle="#fff";ctx.stroke();
+    ctx.lineWidth=.03;ctx.strokeStyle="#222";ctx.beginPath();ctx.arc(x,y,.42,0,7);ctx.stroke();
+    if(c==0&&mv.includes(i)){ctx.lineWidth=.1;ctx.strokeStyle="#111";ctx.beginPath();ctx.arc(x,y,.52,0,7);ctx.stroke()}
+  }
+}
+function ui(){
+  rb.disabled=!(turn==0&&phase=="roll"&&!over);
+  if(over)return;
+  st.innerHTML=turn==0?(phase=="roll"?"À toi ! Lance le dé.":"Touche un pion à avancer."):NAMES[turn]+" joue…";
+  st.style.color=COL[turn];
+}
+function rollDie(){
+  if(phase!="roll"||over)return;
+  roll=1+Math.floor(Math.random()*6);die.textContent="⚀⚁⚂⚃⚄⚅"[roll-1];
+  const m=legal(turn,roll);phase="pick";
+  if(!m.length){st.textContent=NAMES[turn]+" : aucun coup possible";setTimeout(next,900);draw();return}
+  if(turn==0){ui();draw();if(m.length==1)setTimeout(()=>move(0,m[0]),500)}
+  else setTimeout(()=>move(turn,ai(turn,m)),800);
+  ui();draw();
+}
+function ai(c,m){
+  let best=m[0],bs=-1;
+  m.forEach(i=>{
+    const p=P[c][i],np=p<0?0:p+roll;let sc=np;
+    if(p<0)sc+=50;if(np==56)sc+=80;if(np>50&&np<56)sc+=15;
+    if(np<=50&&!safe(abs(c,np)))for(let o=0;o<4;o++)if(o!=c)P[o].forEach(q=>{if(q>=0&&q<=50&&abs(o,q)==abs(c,np))sc+=100});
+    if(sc>bs){bs=sc;best=i}
+  });
+  return best;
+}
+function move(c,i){
+  if(phase!="pick"||over)return;
+  const p=P[c][i],np=p<0?0:p+roll;P[c][i]=np;let cap=false;
+  if(np<=50&&!safe(abs(c,np)))for(let o=0;o<4;o++)if(o!=c)P[o]=P[o].map(q=>{if(q>=0&&q<=50&&abs(o,q)==abs(c,np)){cap=true;return -1}return q});
+  draw();
+  if(P[c].every(q=>q==56)){over=true;st.style.color=COL[c];st.textContent=c==0?"🎉 Tu as gagné !":"😅 "+NAMES[c]+" a gagné";rb.disabled=true;return}
+  if(roll==6||cap||np==56){phase="roll";ui();if(turn!=0)setTimeout(rollDie,700)}else next();
+}
+function next(){turn=(turn+1)%4;phase="roll";ui();draw();if(turn!=0)setTimeout(rollDie,700)}
+cv.addEventListener("click",e=>{
+  if(turn!=0||phase!="pick"||over)return;
+  const r=cv.getBoundingClientRect(),s=r.width/15,x=(e.clientX-r.left)/s,y=(e.clientY-r.top)/s;
+  let best=-1,bd=.8;
+  legal(0,roll).forEach(i=>{const [px,py]=pos(0,i),d=Math.hypot(px-x,py-y);if(d<bd){bd=d;best=i}});
+  if(best>=0)move(0,best);
+});
+rb.onclick=rollDie;document.getElementById("new").onclick=newGame;
+function fit(){size=Math.min(window.innerWidth-24,460);draw()}
+window.addEventListener("resize",fit);
+size=Math.min(window.innerWidth-24,460);newGame();
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>
