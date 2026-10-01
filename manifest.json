@@ -1,0 +1,16 @@
+{
+  "name": "Ludo",
+  "short_name": "Ludo",
+  "description": "Jeu de Ludo hors ligne",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#faf6f0",
+  "theme_color": "#e04a3c",
+  "lang": "fr",
+  "icons": [
+    {"src": "ic%C3%B4ne-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "ic%C3%B4ne-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
